@@ -42,19 +42,31 @@ final class ProxyServer {
         inbound.start(queue: queue)
         target.start(queue: queue)
 
-        pump(from: inbound, to: target, tag: "c>s")
-        pump(from: target, to: inbound, tag: "s>c")
+        // 关键：必须等 target 真正 ready 之后才开始 pump，
+        // 否则 send 会丢在未就绪的连接上，表现为"连上了但没响应"
+        target.stateUpdateHandler = { [weak self] st in
+            guard let self = self else { return }
+            switch st {
+            case .ready:
+                self.log("target ready, piping")
+                self.pump(from: inbound, to: target, tag: "c>s")
+                self.pump(from: target, to: inbound, tag: "s>c")
+            case .failed(let e):
+                self.log("target failed: \(e)")
+                inbound.cancel()
+            case .cancelled:
+                inbound.cancel()
+            default:
+                break
+            }
+        }
 
         inbound.stateUpdateHandler = { st in
             switch st {
-            case .failed, .cancelled: target.cancel()
-            default: break
-            }
-        }
-        target.stateUpdateHandler = { st in
-            switch st {
-            case .failed, .cancelled: inbound.cancel()
-            default: break
+            case .failed, .cancelled:
+                target.cancel()
+            default:
+                break
             }
         }
     }
