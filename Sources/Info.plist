@@ -26,9 +26,16 @@
 	<string>15.0</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>需要访问本地网络，把手机上的 WebDriverAgent 端口转发到同网段的电脑。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>用于在后台保持端口转发服务持续运行。</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>用于在后台保持端口转发服务持续运行。</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>用于在后台保持端口转发服务持续运行。</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>location</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
