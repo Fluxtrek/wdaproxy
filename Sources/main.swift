@@ -1,6 +1,7 @@
 import UIKit
 import Network
 import AVFoundation
+import CoreLocation
 
 // WDAProxy —— 把手机 127.0.0.1:8100 暴露到本机 Wi-Fi 的 0.0.0.0:8101
 // （8101 因为 WDA 自己已经占了 127.0.0.1:8100，同端口绑定会 Address already in use）
@@ -112,6 +113,32 @@ final class ProxyServer {
     }
 }
 
+final class LocationKeepAlive: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+
+    func start() {
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
+        manager.distanceFilter = 500
+        manager.pausesLocationUpdatesAutomatically = false
+        if #available(iOS 9.0, *) {
+            manager.allowsBackgroundLocationUpdates = true
+        }
+        manager.requestAlwaysAuthorization()
+        manager.startUpdatingLocation()
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        // 不需要位置本身，只要保持定位活跃 → 系统持续给后台执行权
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    }
+}
+
 final class KeepAlive {
     private var player: AVAudioPlayer?
 
@@ -159,6 +186,7 @@ final class RootVC: UIViewController {
     private let label = UILabel()
     private let server = ProxyServer()
     private let keepAlive = KeepAlive()
+    private let locKeepAlive = LocationKeepAlive()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -187,6 +215,8 @@ final class RootVC: UIViewController {
         do {
             try server.start()
             keepAlive.start()
+            locKeepAlive.start()
+            append("keepalive: audio + location")
         } catch {
             append("start failed: \(error)")
         }
