@@ -2,11 +2,10 @@ import UIKit
 import Network
 import AVFoundation
 
-// WDAProxy —— 把手机 127.0.0.1:8100 暴露到本机 Wi-Fi 的 0.0.0.0:8100
-// 装上并打开后：电脑 → http://<iPhone-IP>:8100 → 手机 127.0.0.1:8100 (WDA)
-// 需要 Info.plist 里的 NSLocalNetworkUsageDescription 与 UIBackgroundModes=audio
-
-let LISTEN_PORT: UInt16 = 8100
+// WDAProxy —— 把手机 127.0.0.1:8100 暴露到本机 Wi-Fi 的 0.0.0.0:8101
+// （8101 因为 WDA 自己已经占了 127.0.0.1:8100，同端口绑定会 Address already in use）
+// 电脑访问：http://<iPhone-IP>:8101  →  手机 127.0.0.1:8100 (WDA)
+let LISTEN_PORT: UInt16 = 8101
 let TARGET_HOST = "127.0.0.1"
 let TARGET_PORT: UInt16 = 8100
 
@@ -140,11 +139,12 @@ final class RootVC: UIViewController {
         ])
 
         let ip = RootVC.wifiIP() ?? "?"
-        append("WDAProxy  v1")
+        append("WDAProxy  v2")
         append("phone ip : \(ip)")
         append("forward  : 0.0.0.0:\(LISTEN_PORT) -> \(TARGET_HOST):\(TARGET_PORT)")
         append("pc usage : http://\(ip):\(LISTEN_PORT)/status")
         append("----------")
+        append("keep this app open / in background")
 
         server.onLog = { [weak self] s in DispatchQueue.main.async { self?.append(s) } }
         do {
