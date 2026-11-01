@@ -72,18 +72,37 @@ final class ProxyServer {
     }
 
     private func pump(from src: NWConnection, to dst: NWConnection, tag: String) {
-        src.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, isComplete, error in
-            if let data = data, !data.isEmpty {
-                dst.send(content: data, completion: .contentProcessed { err in
-                    if err != nil { dst.cancel(); src.cancel() }
-                })
-            }
-            if isComplete || error != nil {
-                dst.cancel()
-                src.cancel()
+        src.receive(minimumIncompleteLength: 1, maximumLength: 128 * 1024) { [weak self] data, _, isComplete, error in
+            guard let self = self else { src.cancel(); dst.cancel(); return }
+
+            if let error = error {
+                self.log("\(tag) recv error: \(error)")
+                src.cancel(); dst.cancel()
                 return
             }
-            self?.pump(from: src, to: dst, tag: tag)
+
+            if let data = data, !data.isEmpty {
+                // 关键：等 send 完成后再继续 recv，保证顺序与完整性
+                dst.send(content: data, isComplete: isComplete, completion: .contentProcessed { sendErr in
+                    if let sendErr = sendErr {
+                        self.log("\(tag) send error: \(sendErr)")
+                        src.cancel(); dst.cancel()
+                        return
+                    }
+                    if isComplete {
+                        src.cancel(); dst.cancel()
+                    } else {
+                        self.pump(from: src, to: dst, tag: tag)
+                    }
+                })
+            } else if isComplete {
+                dst.send(content: nil, contentContext: .defaultMessage, isComplete: true,
+                         completion: .contentProcessed { _ in
+                    src.cancel(); dst.cancel()
+                })
+            } else {
+                self.pump(from: src, to: dst, tag: tag)
+            }
         }
     }
 
