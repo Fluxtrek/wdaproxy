@@ -120,17 +120,21 @@ final class KeepAlive {
         try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
         try? session.setActive(true)
 
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("silence.wav")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("keepalive.wav")
         if !FileManager.default.fileExists(atPath: url.path) {
-            try? Self.silentWav(seconds: 5).write(to: url)
+            try? Self.lowAmplitudeWav(seconds: 5).write(to: url)
         }
         player = try? AVAudioPlayer(contentsOf: url)
         player?.numberOfLoops = -1
-        player?.volume = 0
+        // 关键：不能是 0。音量为 0 时 iOS 判定"没在播放"，不给后台执行权。
+        // 用 1.0 音量 + 极低幅度波形（实听无声，但波形非零）。
+        player?.volume = 1.0
         player?.play()
     }
 
-    static func silentWav(seconds: Int) -> Data {
+    /// 极低幅度波形：主体 128（静音），每 32 个采样放一个 127，
+    /// 幅度只有 1 个 LSB，实听完全无声，但对系统来说是真的在输出。
+    static func lowAmplitudeWav(seconds: Int) -> Data {
         let sampleRate = 8000
         let samples = sampleRate * seconds
         var d = Data()
@@ -144,7 +148,9 @@ final class KeepAlive {
         le32(UInt32(sampleRate)); le32(UInt32(sampleRate)); le16(1); le16(8)
         d.append("data".data(using: .ascii)!)
         le32(UInt32(samples))
-        d.append(Data(repeating: 128, count: samples))
+        var buf = [UInt8](repeating: 128, count: samples)
+        for i in stride(from: 0, to: samples, by: 32) { buf[i] = 127 }
+        d.append(Data(buf))
         return d
     }
 }
@@ -212,6 +218,7 @@ final class RootVC: UIViewController {
 
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
+    private var bgTask: UIBackgroundTaskIdentifier = .invalid
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -219,6 +226,27 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = RootVC()
         window?.makeKeyAndVisible()
         return true
+    }
+
+    /// 进后台时再撑一段时间，并重新激活音频会话（音频活跃 = 后台执行权）
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        if bgTask == .invalid {
+            bgTask = application.beginBackgroundTask(withName: "wdaproxy-keepalive") { [weak self] in
+                guard let self = self else { return }
+                if self.bgTask != .invalid {
+                    application.endBackgroundTask(self.bgTask)
+                    self.bgTask = .invalid
+                }
+            }
+        }
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        if bgTask != .invalid {
+            application.endBackgroundTask(bgTask)
+            bgTask = .invalid
+        }
     }
 }
 
