@@ -179,14 +179,8 @@ final class RootVC: UIViewController {
     }
 }
 
-@main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
-
-    static func main() {
-        UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil,
-                          NSStringFromClass(AppDelegate.self))
-    }
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -196,3 +190,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 }
+
+// main.swift 允许顶层代码，因此不走 @main，直接显式启动 UIApplication
+UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil,
+                  NSStringFromClass(AppDelegate.self))
+
